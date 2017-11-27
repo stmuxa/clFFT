@@ -42,7 +42,7 @@ The transpose will be done within each sub matrix.
 M1
 M2]
 */
-clfftStatus genTransposeKernelBatched(const FFTGeneratedTransposeSquareAction::Signature & params, std::string& strKernel, const size_t& lwSize, const size_t reShapeFactor);
+clfftStatus genTransposeKernelBatched(const FFTGeneratedTransposeSquareAction::Signature & params, std::string& strKernel, const size_t& lwWidth, const size_t reShapeFactor);
 
 //generate transpose kernel with square 2d matrix of row major with blocks along the leading dimension
 //aka leading dimension batched

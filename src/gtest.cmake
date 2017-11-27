@@ -1,4 +1,3 @@
-
 option(USE_SYSTEM_GTEST "Use system installed gtest when set to ON, or build gtest locally when set to OFF" OFF)
 
 if(USE_SYSTEM_GTEST)

@@ -583,6 +583,29 @@ clfftStatus FFTAction::enqueue(clfftPlanHandle plHandle,
     //	Input may be 1 buffer  (CLFFT_COMPLEX_INTERLEAVED)
     //	          or 2 buffers (CLFFT_COMPLEX_PLANAR)
 
+#define UPLOAD_TEST_DATA 0
+#define PERFORMANCE_TEST 0
+
+    static int count = 0;
+    if (count == 1 && UPLOAD_TEST_DATA && !PERFORMANCE_TEST)
+    {
+        size_t w = this->plan->length[0];
+        size_t h = this->plan->length[1];
+        std::vector<cl_float> memory1(w * h);
+        std::vector<cl_float> memory2(w * h);
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                memory1[y * w + x] = -1;
+                memory2[y * w + x] = -1;
+            }
+        }
+
+        OPENCL_V(clEnqueueWriteBuffer(*commQueues, inputBuff[0], CL_TRUE, 0, w * h * sizeof(cl_float), memory1.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+        OPENCL_V(clEnqueueWriteBuffer(*commQueues, inputBuff[1], CL_TRUE, 0, w * h * sizeof(cl_float), memory2.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+    }
+
     for (size_t i = 0; i < inputBuff.size(); ++i)
     {
         OPENCL_V( clSetKernelArg( kern, uarg++, sizeof( cl_mem ), (void*)&inputBuff[i] ), _T( "clSetKernelArg failed" ) );
@@ -653,15 +676,34 @@ clfftStatus FFTAction::enqueue(clfftPlanHandle plHandle,
     }
     BUG_CHECK (gWorkSize.size() == lWorkSize.size());
 
+#if PERFORMANCE_TEST
+    for (int index = 0; index < (count == 1 ? 100 : 0); ++index)
+    {
+        cl_int call_status = clEnqueueNDRangeKernel(*commQueues, kern, static_cast<cl_uint>(gWorkSize.size()),
+            NULL, &gWorkSize[0], &lWorkSize[0], 0,0,0/*numWaitEvents, waitEvents, outEvents*/);
+        OPENCL_V(call_status, _T("clEnqueueNDRangeKernel failed"));
+    }
+#else
+    cl_int call_status = clEnqueueNDRangeKernel(*commQueues, kern, static_cast< cl_uint >(gWorkSize.size()),
+        NULL, &gWorkSize[0], &lWorkSize[0], numWaitEvents, waitEvents, outEvents);
+    OPENCL_V(call_status, _T("clEnqueueNDRangeKernel failed"));
+#endif
 
-    cl_int call_status = clEnqueueNDRangeKernel( *commQueues, kern, static_cast< cl_uint >( gWorkSize.size( ) ),
-                                            NULL, &gWorkSize[ 0 ],  &lWorkSize[ 0 ], numWaitEvents, waitEvents, outEvents );
-    OPENCL_V( call_status, _T( "clEnqueueNDRangeKernel failed" ) );
+    if (count == 1 && UPLOAD_TEST_DATA && !PERFORMANCE_TEST)
+    {
+        size_t w = this->plan->length[0];
+        size_t h = this->plan->length[1];
+        std::vector<cl_float> memory0(w * h);
+        OPENCL_V(clEnqueueReadBuffer(*commQueues, inputBuff[0], CL_TRUE, 0, w * h * sizeof(cl_float), memory0.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+        std::vector<cl_float> memory1(w * h);
+        OPENCL_V(clEnqueueReadBuffer(*commQueues, inputBuff[1], CL_TRUE, 0, w * h * sizeof(cl_float), memory1.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+    }
 
     if( fftRepo.pStatTimer )
     {
         fftRepo.pStatTimer->AddSample( plHandle, this->plan, kern, numQueuesAndEvents, outEvents, gWorkSize, lWorkSize );
     }
+    count++;
 
     return CLFFT_SUCCESS;
 }

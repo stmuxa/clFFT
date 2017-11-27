@@ -125,7 +125,7 @@ set( SUFFIX_BIN ${SUFFIX_BIN_DEFAULT} CACHE STRING "String to append to 'bin' in
 # Useful variables to configure FindBoost.cake
 # set( Boost_USE_MULTITHREADED ON )
 # set( Boost_DETAILED_FAILURE_MSG   ON )
-# set( Boost_DEBUG ON )
+ set( Boost_DEBUG ON )
 # set( Boost_NO_SYSTEM_PATHS ON )
 
 # Client is built only if boost is found; on windows, we need vs10 or higher
@@ -160,15 +160,23 @@ else( )
 endif( )
 
 # Enable building of the googletest unit test framework if requested and all dependencies are found
+
+message( STATUS "BUILD_TEST: ${BUILD_TEST}" )
+message( STATUS "Boost_FOUND: ${Boost_FOUND}" )
+message( STATUS "FFTW_FOUND: ${FFTW_FOUND}" )
+
 set( UNIT_TEST OFF )
 if( BUILD_TEST )
 	include(gtest.cmake)
+	message( STATUS "GTEST_FOUND: ${GTEST_FOUND}" )
 	if( GTEST_FOUND AND Boost_FOUND AND FFTW_FOUND )
 		set( UNIT_TEST ON )
 	else( )
 		message( "GoogleTest unit testing will NOT be built" )
 	endif( )
 endif( )
+
+message( STATUS "UNIT_TEST: ${UNIT_TEST}" )
 
 # Enable building of the callback client if requested and all dependencies are found
 if( BUILD_CALLBACK_CLIENT AND Boost_FOUND AND FFTW_FOUND )

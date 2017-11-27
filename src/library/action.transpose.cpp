@@ -189,17 +189,15 @@ clfftStatus FFTGeneratedTransposeNonSquareAction::initParams()
     return CLFFT_SUCCESS;
 }
 
-
-static const size_t lwSize = 256;
-static const size_t reShapeFactor = 2;
+static const size_t lwWidth = 8;
+static const size_t lwSize = lwWidth*lwWidth;
+static const size_t reShapeFactor = 4;
 
 
 //	OpenCL does not take unicode strings as input, so this routine returns only ASCII strings
 //	Feed this generator the FFTPlan, and it returns the generated program as a string
 clfftStatus FFTGeneratedTransposeNonSquareAction::generateKernel(FFTRepo& fftRepo, const cl_command_queue commQueueFFT)
 {
-
-
     std::string programCode;
 	std::string kernelFuncName;//applied to swap kernel for now
     if (this->signature.nonSquareKernelType == NON_SQUARE_TRANS_TRANSPOSE_BATCHED_LEADING)
@@ -245,7 +243,7 @@ clfftStatus FFTGeneratedTransposeNonSquareAction::generateKernel(FFTRepo& fftRep
 				return CLFFT_INVALID_ARG_VALUE;
 			}
 		}
-		OPENCL_V(clfft_transpose_generator::genTransposeKernelBatched(this->signature, programCode, lwSize, reShapeFactor), _T("genTransposeKernel() failed!"));
+		OPENCL_V(clfft_transpose_generator::genTransposeKernelBatched(this->signature, programCode, lwWidth, reShapeFactor), _T("genTransposeKernel() failed!"));
 	}
     else
     {
@@ -694,7 +692,7 @@ clfftStatus FFTGeneratedTransposeSquareAction::generateKernel(FFTRepo& fftRepo, 
 	}
 
 	std::string programCode;
-	OPENCL_V(clfft_transpose_generator::genTransposeKernelBatched(this->signature, programCode, lwSize, reShapeFactor), _T("GenerateTransposeKernel() failed!"));
+	OPENCL_V(clfft_transpose_generator::genTransposeKernelBatched(this->signature, programCode, lwWidth, reShapeFactor), _T("GenerateTransposeKernel() failed!"));
 
 	cl_int status = CL_SUCCESS;
 	cl_device_id Device = NULL;
@@ -726,12 +724,12 @@ clfftStatus FFTGeneratedTransposeSquareAction::getWorkSizes(std::vector< size_t 
 {
 
 	size_t wg_slice;
-	if (this->signature.fft_N[0] % (16 * reShapeFactor) == 0)
-		wg_slice = this->signature.fft_N[0] / 16 / reShapeFactor;
+	if (this->signature.fft_N[0] % (lwWidth * reShapeFactor) == 0)
+		wg_slice = this->signature.fft_N[0] / lwWidth / reShapeFactor;
 	else
-		wg_slice = (this->signature.fft_N[0] / (16 * reShapeFactor)) + 1;
+		wg_slice = (this->signature.fft_N[0] / (lwWidth * reShapeFactor)) + 1;
 
-	size_t global_item_size = wg_slice*(wg_slice + 1) / 2 * 16 * 16 * this->plan->batchsize;
+	size_t global_item_size = wg_slice*(wg_slice + 1) / 2 * lwWidth * lwWidth * this->plan->batchsize;
 
 	for (int i = 2; i < this->signature.fft_DataDim - 1; i++)
 	{

@@ -352,8 +352,148 @@ static clfftStatus genTransposePrototype( const FFTGeneratedTransposeGCNAction::
 static clfftStatus genTransposeKernel( const FFTGeneratedTransposeGCNAction::Signature & params, std::string& strKernel, const tile& lwSize, const size_t reShapeFactor, 
                                             const size_t loopCount, const tile& blockSize )
 {
-    strKernel.reserve( 4096 );
-    std::stringstream transKernel( std::stringstream::out );
+    static int count = 0;
+    if (count == 1)
+    {
+        strKernel =
+            R"(
+
+                                                //// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                                                // Local structure to embody/capture tile dimensions
+typedef struct tag_Tile
+{
+   size_t x;
+   size_t y;
+} Tile;
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_gcn( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 2;
+   const size_t wgUnroll = 4;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 9;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 32 ][ 32 ];
+
+                                                   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+                                                   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*65792;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 257;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * groupIndex.x;
+   iOffset += currDimIndex * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 257;
+   
+
+                                                   if( currDimIndex == 8 )
+   {
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         
+         if( (xInd < 1) )
+         {
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+         }
+         
+      }
+   }
+   else
+   {
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         {
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+         }
+         
+      }
+   }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*65792;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 256;
+   oOffset += rowSizeinUnits * wgTileExtent.x * currDimIndex;
+   oOffset += groupIndex.x * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+                                                   rowSizeinUnits = 256;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+ //for( uint t=0; t < wgUnroll; t++ )
+if (get_global_id(1) + get_global_id(0) == 0)
+{
+    pmComplexOut[0] = groupingPerY+1000;
+}
+return;
+
+/*               if( currDimIndex == 8 )
+   {
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         
+         if( (yInd < 1) )
+         {
+         tileOut[ gInd ] = 1000+localIndex.x;//tmp;
+         }
+      }
+   }
+   else*/
+   {
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         {
+         tileOut[ gInd ] = -5;//tmp;
+         }
+      }
+   }
+}
+
+
+)";
+        count++;
+        return CLFFT_SUCCESS;
+    }
+
+    strKernel.reserve(4096);
+    std::stringstream transKernel(std::stringstream::out);
 
     // These strings represent the various data types we read or write in the kernel, depending on how the plan
     // is configured
