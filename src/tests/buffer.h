@@ -536,7 +536,8 @@ private:
 
 				rms = sqrt(rms*maxMagInv);
 
-				if (fabs(rms) > rmse_tolerance_this)
+				if (fabs(rms) <= rmse_tolerance_this) {}
+				else
 				{
 					if (suppress_output == false)
 						std::cout << std::endl << "RMSE accuracy judgement failure -- RMSE = " << std::dec << rms <<
