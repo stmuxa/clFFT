@@ -674,9 +674,15 @@ clfftStatus clfftEnqueueTransform(
 			if (fftPlan->transflag)
 			{//first time set up transpose kernel for 2D
 				//First row
+#if FORCE_OUT_OF_PLACE
 				OPENCL_V( clfftEnqueueTransform( fftPlan->planX, dir, numQueuesAndEvents, commQueues, numWaitEvents,
-					waitEvents, &rowOutEvents, clInputBuffers, clOutputBuffers, NULL ),
+					waitEvents, &rowOutEvents, clInputBuffers, &clTmpBuffers, NULL ),
 					_T("clfftEnqueueTransform for row failed"));
+#else
+				OPENCL_V(clfftEnqueueTransform(fftPlan->planX, dir, numQueuesAndEvents, commQueues, numWaitEvents,
+					waitEvents, &rowOutEvents, clInputBuffers, clOutputBuffers, NULL),
+					_T("clfftEnqueueTransform for row failed"));
+#endif
 
 				cl_mem *mybuffers;
 
@@ -697,9 +703,15 @@ clfftStatus clfftEnqueueTransform(
 				if (!fftPlan->transpose_in_2d_inplace)
 				{
 					//First transpose
+#if FORCE_OUT_OF_PLACE
 					OPENCL_V( clfftEnqueueTransform( fftPlan->planTX, dir, numQueuesAndEvents, commQueues, 1, &rowOutEvents,
-						&transXOutEvents, mybuffers, &localIntBuffer, NULL ),
+						&transXOutEvents, mybuffers, clOutputBuffers, NULL ),
 						_T("clfftEnqueueTransform for first transpose failed"));
+#else
+					OPENCL_V(clfftEnqueueTransform(fftPlan->planTX, dir, numQueuesAndEvents, commQueues, 1, &rowOutEvents,
+						&transXOutEvents, mybuffers, &localIntBuffer, NULL),
+						_T("clfftEnqueueTransform for first transpose failed"));
+#endif
 					clReleaseEvent(rowOutEvents);
 
 #if defined(DEBUGGING)
@@ -711,9 +723,15 @@ clfftStatus clfftEnqueueTransform(
 					if (fftPlan->transposed == CLFFT_NOTRANSPOSE)
 					{
 						//Second Row transform
+#if FORCE_OUT_OF_PLACE
 						OPENCL_V( clfftEnqueueTransform( fftPlan->planY, dir, numQueuesAndEvents, commQueues, 1, &transXOutEvents,
-							&colOutEvents, &localIntBuffer, NULL, NULL ),
+							&colOutEvents, clOutputBuffers, &clTmpBuffers, NULL ),
 							_T("clfftEnqueueTransform for second row failed"));
+#else
+						OPENCL_V(clfftEnqueueTransform(fftPlan->planY, dir, numQueuesAndEvents, commQueues, 1, &transXOutEvents,
+							&colOutEvents, &localIntBuffer, NULL, NULL),
+							 _T("clfftEnqueueTransform for second row failed"));
+#endif
 						clReleaseEvent(transXOutEvents);
 
 #if defined(DEBUGGING)
@@ -723,9 +741,15 @@ clfftStatus clfftEnqueueTransform(
 #endif
 
 						//Second transpose
+#if FORCE_OUT_OF_PLACE
 						OPENCL_V( clfftEnqueueTransform( fftPlan->planTY, dir, numQueuesAndEvents, commQueues, 1, &colOutEvents,
-							outEvents, &localIntBuffer, mybuffers, NULL ),
+							outEvents, &clTmpBuffers, clOutputBuffers, NULL ),
 							_T("clfftEnqueueTransform for second transpose failed"));
+#else
+						OPENCL_V(clfftEnqueueTransform(fftPlan->planTY, dir, numQueuesAndEvents, commQueues, 1, &colOutEvents,
+							outEvents, &localIntBuffer, mybuffers, NULL),
+							_T("clfftEnqueueTransform for second transpose failed"));
+#endif
 						clReleaseEvent(colOutEvents);
 
 #if defined(DEBUGGING)

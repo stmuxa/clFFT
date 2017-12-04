@@ -2563,8 +2563,11 @@ clfftStatus	clfftBakePlan( clfftPlanHandle plHandle, cl_uint numQueues, cl_comma
 				size_t biggerDim = clLengths[0] > clLengths[1] ? clLengths[0] : clLengths[1];
 				size_t smallerDim = biggerDim == clLengths[0] ? clLengths[1] : clLengths[0];
 				size_t padding = 0;
-
+#if FORCE_OUT_OF_PLACE
+				fftPlan->transpose_in_2d_inplace = false;
+#else
 				fftPlan->transpose_in_2d_inplace = (clLengths[0]==clLengths[1]) ? true : false;
+#endif
 				if ( (!fftPlan->transpose_in_2d_inplace) && fftPlan->tmpBufSize==0 && fftPlan->length.size()<=2 )
 				{
 					if ((smallerDim % 64 == 0) || (biggerDim % 64 == 0))
@@ -2597,12 +2600,21 @@ clfftStatus	clfftBakePlan( clfftPlanHandle plHandle, cl_uint numQueues, cl_comma
 
 				if (!fftPlan->transpose_in_2d_inplace)
 				{
+#if FORCE_OUT_OF_PLACE
+					transPlanX->gen = Transpose_SQUARE;
+					transPlanX->outputLayout    = fftPlan->outputLayout;
+					transPlanX->placeness       = CLFFT_OUTOFPLACE;
+					transPlanX->outStride[0]    = fftPlan->outStride[0];
+					transPlanX->outStride[1]    = fftPlan->outStride[1];
+					transPlanX->oDist           = fftPlan->oDist;
+#else
 					transPlanX->gen = Transpose_GCN;
 					transPlanX->outputLayout    = CLFFT_COMPLEX_INTERLEAVED;
 					transPlanX->placeness       = CLFFT_OUTOFPLACE;
 					transPlanX->outStride[0]    = 1;
 					transPlanX->outStride[1]    = clLengths[1] + padding;
 					transPlanX->oDist           = clLengths[0] * transPlanX->outStride[1];
+#endif
 				}
 				else
 				{
@@ -2636,11 +2648,19 @@ clfftStatus	clfftBakePlan( clfftPlanHandle plHandle, cl_uint numQueues, cl_comma
 
 					if (fftPlan->transposed == CLFFT_NOTRANSPOSE)
 					{
+#if FORCE_OUT_OF_PLACE
+						colPlan->outputLayout = fftPlan->outputLayout;
+						colPlan->outStride[0] = fftPlan->outStride[0];
+						colPlan->outStride.push_back(clLengths[1] * fftPlan->outStride[0]);
+						colPlan->oDist = fftPlan->oDist;
+						colPlan->placeness = CLFFT_OUTOFPLACE;
+#else
 						colPlan->outputLayout    = CLFFT_COMPLEX_INTERLEAVED;
 						colPlan->outStride[0]    = 1;
 						colPlan->outStride.push_back(clLengths[1] + padding);
 						colPlan->oDist           = clLengths[0] * colPlan->outStride[1];
 						colPlan->placeness       = CLFFT_INPLACE;
+#endif
 					}
 					else
 					{
@@ -2695,6 +2715,14 @@ clfftStatus	clfftBakePlan( clfftPlanHandle plHandle, cl_uint numQueues, cl_comma
 
 				if (!fftPlan->transpose_in_2d_inplace)
 				{
+#if FORCE_OUT_OF_PLACE
+					transPlanY->gen = Transpose_SQUARE;
+					transPlanY->inputLayout     = fftPlan->outputLayout;
+					transPlanY->placeness       = CLFFT_OUTOFPLACE;
+					transPlanY->inStride[0]     = fftPlan->outStride[0];
+					transPlanY->inStride[1]     = fftPlan->outStride[1];
+					transPlanY->iDist           = fftPlan->oDist;
+#else
 					transPlanY->gen = Transpose_GCN;
 					transPlanY->inputLayout     = CLFFT_COMPLEX_INTERLEAVED;
 					transPlanY->placeness       = CLFFT_OUTOFPLACE;
@@ -2702,6 +2730,7 @@ clfftStatus	clfftBakePlan( clfftPlanHandle plHandle, cl_uint numQueues, cl_comma
 					transPlanY->inStride[1]     = clLengths[1] + padding;
 					transPlanY->iDist           = clLengths[0] * transPlanY->inStride[1];
 					transPlanY->transOutHorizontal = true;
+#endif
 				}
 				else
 				{

@@ -591,19 +591,20 @@ clfftStatus FFTAction::enqueue(clfftPlanHandle plHandle,
     {
         size_t w = this->plan->length[0];
         size_t h = this->plan->length[1];
-        std::vector<cl_float> memory1(w * h);
-        std::vector<cl_float> memory2(w * h);
+        std::vector<cl_float2> memory0(w * h);
+        //std::vector<cl_float> memory1(w * h);
         for (int y = 0; y < h; ++y)
         {
             for (int x = 0; x < w; ++x)
             {
-                memory1[y * w + x] = -1;
-                memory2[y * w + x] = -1;
+                memory0[y * w + x].x = x;
+                memory0[y * w + x].y = -1;
+                //memory1[y * w + x] = -1;
             }
         }
 
-        OPENCL_V(clEnqueueWriteBuffer(*commQueues, inputBuff[0], CL_TRUE, 0, w * h * sizeof(cl_float), memory1.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
-        OPENCL_V(clEnqueueWriteBuffer(*commQueues, inputBuff[1], CL_TRUE, 0, w * h * sizeof(cl_float), memory2.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+        OPENCL_V(clEnqueueWriteBuffer(*commQueues, inputBuff[0], CL_TRUE, 0, w * h * sizeof(cl_float2), memory0.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+        //OPENCL_V(clEnqueueWriteBuffer(*commQueues, inputBuff[1], CL_TRUE, 0, w * h * sizeof(cl_float), memory1.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
     }
 
     for (size_t i = 0; i < inputBuff.size(); ++i)
@@ -693,10 +694,27 @@ clfftStatus FFTAction::enqueue(clfftPlanHandle plHandle,
     {
         size_t w = this->plan->length[0];
         size_t h = this->plan->length[1];
-        std::vector<cl_float> memory0(w * h);
-        OPENCL_V(clEnqueueReadBuffer(*commQueues, inputBuff[0], CL_TRUE, 0, w * h * sizeof(cl_float), memory0.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
-        std::vector<cl_float> memory1(w * h);
-        OPENCL_V(clEnqueueReadBuffer(*commQueues, inputBuff[1], CL_TRUE, 0, w * h * sizeof(cl_float), memory1.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+        std::vector<cl_float2> memory0(w * h);
+        OPENCL_V(clEnqueueReadBuffer(*commQueues, outputBuff[0], CL_TRUE, 0, w * h * sizeof(cl_float2), memory0.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+        //std::vector<cl_float> memory1(w * h);
+        //OPENCL_V(clEnqueueReadBuffer(*commQueues, inputBuff[1], CL_TRUE, 0, w * h * sizeof(cl_float), memory1.data(), 0, 0, 0), _T("clEnqueueWriteBuffer failed"));
+
+        //for (int y = 0; y < h; ++y)
+        //{
+        //    for (int x = 0; x < w; ++x)
+        //    {
+        //        if (memory0[y * w + x].x == y && memory0[y * w + x].y == -1.0f)
+        //        {
+        //        }
+        //        else
+        //        {
+        //            x = x;
+        //        }
+        //    }
+        //}
+
+
+
     }
 
     if( fftRepo.pStatTimer )

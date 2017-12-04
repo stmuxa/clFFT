@@ -284,6 +284,7 @@ int main( int argc, char **argv )
 
 	::testing::InitGoogleTest( &myArgc, const_cast< char** >( &myArgv[ 0 ] ) );
     //::testing::GTEST_FLAG(filter) = "accuracy_test_pow2_single.normal_2D_in_place_real_to_hermitian_interleaved";
-   // ::testing::GTEST_FLAG(filter) = "accuracy_test_pow2_single.normal_2D_forward_in_place_complex_planar_to_complex_planar";
-	return RUN_ALL_TESTS();
+    // ::testing::GTEST_FLAG(filter) = "accuracy_test_pow2_single.normal_2D_forward_in_place_complex_planar_to_complex_planar";
+    ::testing::GTEST_FLAG(filter) = "accuracy_test_pow2_single.normal_2D_forward_out_of_place_complex_interleaved_to_complex_interleaved";
+    return RUN_ALL_TESTS();
 }

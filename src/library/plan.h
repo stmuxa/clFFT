@@ -14,6 +14,7 @@
  * limitations under the License.
  * ************************************************************************/
 
+#define FORCE_OUT_OF_PLACE 0
 
 #pragma once
 #if !defined( AMD_CLFFT_plan_H )
