@@ -1949,70 +1949,80 @@ clfftStatus genTransposeKernelBatched(const FFTGeneratedTransposeSquareAction::S
 #define GENERATE_KERNEL 1
     if (!GENERATE_KERNEL) {
         strKernel = R"(
-//!!!!!!!!!!!!!!!!!!!
 __attribute__(( reqd_work_group_size( 64, 1, 1 ) ))
 kernel void
 transpose_square( global float* restrict inputA_R, global float* restrict inputA_I )
 {
-   const size_t numGroupsY_1 = 3;
+   const size_t numGroupsY_1 = 528;
    size_t g_index;
    
    size_t iOffset = 0;
    g_index = get_group_id(0);
-   iOffset += (g_index/numGroupsY_1)*4096;
+   iOffset += (g_index/numGroupsY_1)*1048576;
    g_index = g_index % numGroupsY_1;
    
-inputA_R[get_global_id(0)] = -1.0f * iOffset;
-return;
-
    inputA_R += iOffset;
    inputA_I += iOffset;
    global float *outputA_R = inputA_R;
    global float *outputA_I = inputA_I;
    
-   float row = (-5+sqrt((24 - 8.0f*g_index - 7)))/ (-2.0f);
+   float row = (-65+sqrt((4224-8.0f*g_index- 7)))/ (-2.0f);
    if (row == (float)(size_t)row) row -= 1; 
    const size_t t_gy = (size_t)row;
    
-   const long t_gx_p = g_index - 2*t_gy + t_gy*(t_gy + 1) / 2;
+   const long t_gx_p = g_index - 32*t_gy + t_gy*(t_gy + 1) / 2;
    const long t_gy_p = t_gx_p - t_gy;
    
-   const size_t d_lidx = get_local_id(0) % 16;
-   const size_t d_lidy = get_local_id(0) / 16;
+   const size_t d_lidx = get_local_id(0) % 8;
+   const size_t d_lidy = get_local_id(0) / 8;
    
-   const size_t lidy = (d_lidy * 16 + d_lidx) /32;
-   const size_t lidx = (d_lidy * 16 + d_lidx) %32;
+   const size_t lidy = (d_lidy * 8 + d_lidx) /32;
+   const size_t lidx = (d_lidy * 8 + d_lidx) %32;
    
    const size_t idx = lidx + t_gx_p*32;
    const size_t idy = lidy + t_gy_p*32;
    
-   const size_t starting_index_yx = t_gy_p*32 + t_gx_p*2048;
+   const size_t starting_index_yx = t_gy_p*32 + t_gx_p*32768;
    
-   __local float2 xy_s[1024];
-   __local float2 yx_s[1024];
-   float2 tmpm, tmpt;
+   __local float2 lds[1024];
+   float2 tmp;
    
    size_t index;
-   for (size_t loop = 0; loop<4; ++loop){
-      index = lidy*32 + lidx + loop*256;
-      tmpm.x = inputA_R[(idy + loop *8)*64 + idx];
-      tmpm.y = inputA_I[(idy + loop *8)*64 + idx];
-      tmpt.x = inputA_R[(lidy + loop *8)*64 + lidx + starting_index_yx];
-      tmpt.y = inputA_I[(lidy + loop *8)*64 + lidx + starting_index_yx];
-      xy_s[index] = tmpm; 
-      yx_s[index] = tmpt; 
+   for (size_t loop = 0; loop<16; ++loop){
+      index = lidy*32 + lidx + loop * 64;
+      tmp.x = inputA_R[(idy + loop *2)*1024 + idx];
+      tmp.y = inputA_R[(lidy + loop *2)*1024 + lidx + starting_index_yx];
+      lds[index] = tmp; 
    }
    
    barrier(CLK_LOCAL_MEM_FENCE);
    
-   for (size_t loop = 0; loop<4; ++loop){
-      index = lidx*32 + lidy + 8*loop;
-      outputA_R[(idy + loop*8)*64 + idx] = yx_s[index].x;
-      outputA_I[(idy + loop*8)*64 + idx] = yx_s[index].y;
-      outputA_R[(lidy + loop*8)*64 + lidx+ starting_index_yx] = xy_s[index].x;
-      outputA_I[(lidy + loop*8)*64 + lidx+ starting_index_yx] = xy_s[index].y;
+   for (size_t loop = 0; loop<16; ++loop){
+      index = lidx*32 + lidy + 2*loop;
+      outputA_R[(idy + loop*2)*1024 + idx] = lds[index].y;
+      outputA_R[(lidy + loop*2)*1024 + lidx+ starting_index_yx] = lds[index].x;
+   }
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+	for (size_t loop = 0; loop<16; ++loop){
+      index = lidy*32 + lidx + loop * 64;
+      tmp.x = inputA_I[(idy + loop *2)*1024 + idx];
+      tmp.y = inputA_I[(lidy + loop *2)*1024 + lidx + starting_index_yx];
+      lds[index] = tmp; 
+      lds[index] = tmp; 
+   }
+   
+   barrier(CLK_LOCAL_MEM_FENCE);
+   
+   for (size_t loop = 0; loop<16; ++loop){
+      index = lidx*32 + lidy + 2*loop;
+      outputA_I[(idy + loop*2)*1024 + idx] = lds[index].y;
+      outputA_I[(lidy + loop*2)*1024 + lidx+ starting_index_yx] = lds[index].x;
    }
 }
+
 )";
         return CLFFT_SUCCESS;
     }
