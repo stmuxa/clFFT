@@ -1247,14 +1247,25 @@ static const tile lwSize = { 16, 16 };
 static const size_t reShapeFactor = 4;   // wgTileSize = { lwSize.x * reShapeFactor, lwSize.y / reShapeFactor }
 
 
-static clfftStatus CalculateBlockSize(const clfftPrecision precision, size_t &loopCount, tile &blockSize)
+static clfftStatus CalculateBlockSize(const clfftPrecision precision, size_t &loopCount, tile &blockSize, FFTPlan* plan)
 {
     switch( precision )
     {
     case CLFFT_SINGLE:
     case CLFFT_SINGLE_FAST:
+    {
         loopCount = 16;
+        if (plan->dim == CLFFT_2D && plan->length[0] <= 1024 && plan->length[1] <= 1024)
+        {
+            size_t deviceNameSize = 0;
+            OPENCL_V(clGetDeviceInfo( plan->bakeDevice, CL_DEVICE_NAME, 0, NULL, &deviceNameSize ), _T("clGetDeviceInfo() failed)") );
+            std::vector<char> deviceName( deviceNameSize );
+            OPENCL_V(clGetDeviceInfo( plan->bakeDevice, CL_DEVICE_NAME, deviceNameSize, &deviceName[0], NULL ), _T("clGetDeviceInfo() failed)") );
+            bool vega = std::string(deviceName.data()) == "gfx901";
+            loopCount = vega ? 4 : loopCount;
+        }
         break;
+    }
     case CLFFT_DOUBLE:
     case CLFFT_DOUBLE_FAST:
         // Double precisions need about half the amount of LDS space as singles do
@@ -1281,7 +1292,7 @@ clfftStatus FFTGeneratedTransposeGCNAction::generateKernel ( FFTRepo& fftRepo, c
 	
 	size_t loopCount = 0;
 	tile blockSize = {0, 0};
-	OPENCL_V( CalculateBlockSize(this->signature.fft_precision, loopCount, blockSize), _T("CalculateBlockSize() failed!") );
+	OPENCL_V( CalculateBlockSize(this->signature.fft_precision, loopCount, blockSize, plan), _T("CalculateBlockSize() failed!") );
 
 	//Requested local memory size by callback must not exceed the device LDS limits after factoring the LDS size required by main FFT kernel
 	if ((this->signature.fft_hasPreCallback && this->signature.fft_preCallback.localMemSize > 0) || 
@@ -1341,7 +1352,7 @@ clfftStatus FFTGeneratedTransposeGCNAction::getWorkSizes( std::vector< size_t >&
 {
 	size_t loopCount = 0;
 	tile blockSize = {0, 0};
-	OPENCL_V( CalculateBlockSize(this->signature.fft_precision, loopCount, blockSize), _T("CalculateBlockSize() failed!") );
+	OPENCL_V( CalculateBlockSize(this->signature.fft_precision, loopCount, blockSize, plan), _T("CalculateBlockSize() failed!") );
 
 
     // We need to make sure that the global work size is evenly divisible by the local work size
