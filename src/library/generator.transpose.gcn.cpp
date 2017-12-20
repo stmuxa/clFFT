@@ -1246,6 +1246,20 @@ clfftStatus FFTGeneratedTransposeGCNAction::initParams ()
 static const tile lwSize = { 16, 16 };
 static const size_t reShapeFactor = 4;   // wgTileSize = { lwSize.x * reShapeFactor, lwSize.y / reShapeFactor }
 
+static void ApplyHWTuning(size_t &loopCount, FFTPlan* plan)
+{
+    if (plan->dim == CLFFT_2D && plan->length[0] <= 1024 && plan->length[1] <= 1024)
+    {
+#define CL_DEVICE_GFXIP_MAJOR_AMD 0x404A
+#define GFXIP_MAJOR_VEGA 9
+        cl_uint gfxip_major = 0;
+        cl_int err = clGetDeviceInfo(plan->bakeDevice, CL_DEVICE_GFXIP_MAJOR_AMD, sizeof(gfxip_major), &gfxip_major, NULL);
+        if (err == CL_SUCCESS && gfxip_major == GFXIP_MAJOR_VEGA)
+        {
+            loopCount = 4;
+        }
+     }
+}
 
 static clfftStatus CalculateBlockSize(const clfftPrecision precision, size_t &loopCount, tile &blockSize, FFTPlan* plan)
 {
@@ -1253,19 +1267,9 @@ static clfftStatus CalculateBlockSize(const clfftPrecision precision, size_t &lo
     {
     case CLFFT_SINGLE:
     case CLFFT_SINGLE_FAST:
-    {
         loopCount = 16;
-        if (plan->dim == CLFFT_2D && plan->length[0] <= 1024 && plan->length[1] <= 1024)
-        {
-            size_t deviceNameSize = 0;
-            OPENCL_V(clGetDeviceInfo( plan->bakeDevice, CL_DEVICE_NAME, 0, NULL, &deviceNameSize ), _T("clGetDeviceInfo() failed)") );
-            std::vector<char> deviceName( deviceNameSize );
-            OPENCL_V(clGetDeviceInfo( plan->bakeDevice, CL_DEVICE_NAME, deviceNameSize, &deviceName[0], NULL ), _T("clGetDeviceInfo() failed)") );
-            bool vega = std::string(deviceName.data()) == "gfx901";
-            loopCount = vega ? 4 : loopCount;
-        }
+        ApplyHWTuning(loopCount, plan);
         break;
-    }
     case CLFFT_DOUBLE:
     case CLFFT_DOUBLE_FAST:
         // Double precisions need about half the amount of LDS space as singles do
